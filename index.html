@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>수와 양 튼튼 교실</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        body { font-family: Pretendard, sans-serif; }
+        .fade-in { animation: fadeIn 0.5s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .bounce { animation: bounce 1s infinite; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        
+        /* 분수 스타일 보정 */
+        .fraction-container { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 4px; }
+        .fraction-line { width: 100%; border-top: 2px solid currentColor; margin: 2px 0; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col items-center justify-center">
+
+    <div id="app" class="w-full max-w-3xl min-h-screen bg-white shadow-2xl md:min-h-[800px] md:h-auto md:rounded-3xl relative overflow-hidden flex flex-col">
+        <!-- 내용은 자바스크립트로 렌더링 됩니다 -->
+    </div>
+
+    <script>
+        /**
+         * ⚙️ 설정 영역
+         * 선생님이 Render 등에 올린 서버 주소를 여기에 입력하세요.
+         */
+        const API_URL = ""; 
+
+        // --- 상태 관리 (State) ---
+        const TOTAL_PROBLEMS = 20;
+        const PASS_THRESHOLD = 15;
+        const AI_TOTAL_PROBLEMS = 5;
+
+        let state = {
+            view: 'menu', 
+            mode: null, 
+            score: 0,
+            streak: 0,
+            problemCount: 0,
+            correctCount: 0,
+            question: null,
+            feedback: null,
+            completedLevels: [],
+            aiTopic: '',
+            aiMathType: 'fraction',
+            isAiLoading: false,
+            aiError: null,
+            aiProblemSet: []
+        };
+
+        try {
+            const saved = localStorage.getItem('drill_completed_levels');
+            if (saved) state.completedLevels = JSON.parse(saved);
+        } catch (e) { console.error(e); }
+
+        const app = document.getElementById('app');
+
+        // --- 헬퍼 함수: 분수 HTML 생성 ---
+        function makeFractionHtml(num, den) {
+            return `
+                <div class="fraction-container text-2xl font-bold text-slate-800">
+                    <span>${num}</span>
+                    <span class="fraction-line border-slate-800"></span>
+                    <span>${den}</span>
+                </div>
+            `;
+        }
+
+        // --- 렌더링 함수들 ---
+
+        function render() {
+            app.innerHTML = '';
+            if (state.view === 'menu') renderMenu();
+            else if (state.view === 'playing') renderGame();
+            else if (state.view === 'result') renderResult();
+            else if (state.view === 'ai-setup') renderAiSetup();
+            lucide.createIcons();
+        }
+
+        function renderMenu() {
+            const isDecimalUnlocked = state.completedLevels.includes('fraction');
+            const isCompareUnlocked = state.completedLevels.includes('decimal');
+            const isAiUnlocked = state.completedLevels.includes('compare');
+
+            const template = `
+                <div class="flex flex-col items-center justify-center h-full p-6 fade-in overflow-y-auto">
+                    <header class="mb-8 text-center relative w-full pt-8">
+                        <div class="inline-block p-4 bg-blue-100 rounded-full mb-4">
+                            <i data-lucide="calculator" class="w-12 h-12 text-blue-600"></i>
+                        </div>
+                        <h1 class="text-3xl font-extrabold text-slate-800 mb-2">수와 양 튼튼 교실</h1>
+                        <p class="text-lg text-slate-600">각 단계 <span class="text-orange-600 font-bold">${PASS_THRESHOLD}문제 이상</span> 맞춰야 통과!</p>
+                        ${state.completedLevels.length > 0 ? `<button onclick="resetProgress()" class="absolute right-0 top-0 text-xs text-slate-400 underline hover:text-slate-600">초기화</button>` : ''}
+                    </header>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full pb-8">
+                        <!-- 1. 분수 -->
+                        <button onclick="startGame('fraction')" class="group relative bg-white border-2 border-orange-200 p-6 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all flex flex-col items-center">
+                            ${state.completedLevels.includes('fraction') ? '<div class="absolute top-4 right-4 bg-orange-100 text-orange-600 p-1 rounded-full"><i data-lucide="check-circle" class="w-5 h-5"></i></div>' : ''}
+                            <div class="bg-orange-100 p-4 rounded-full mb-4 group-hover:bg-orange-200 transition-colors">
+                                <i data-lucide="brain" class="w-8 h-8 text-orange-600"></i>
+                            </div>
+                            <h2 class="text-xl font-bold mb-1">1. 분수 마스터</h2>
+                            <p class="text-sm text-slate-500">분수의 나눗셈 (20문제)</p>
+                        </button>
+
+                        <!-- 2. 소수 -->
+                        <button onclick="${isDecimalUnlocked ? "startGame('decimal')" : ''}" class="group relative p-6 rounded-2xl border-2 transition-all flex flex-col items-center ${isDecimalUnlocked ? 'bg-white border-emerald-200 hover:shadow-xl hover:-translate-y-1 cursor-pointer' : 'bg-slate-100 border-slate-200 opacity-70 cursor-not-allowed'}">
+                            ${!isDecimalUnlocked ? '<div class="absolute inset-0 bg-slate-100/50 flex items-center justify-center rounded-2xl"><i data-lucide="lock" class="w-10 h-10 text-slate-400"></i></div>' : ''}
+                            ${state.completedLevels.includes('decimal') ? '<div class="absolute top-4 right-4 bg-emerald-100 text-emerald-600 p-1 rounded-full z-10"><i data-lucide="check-circle" class="w-5 h-5"></i></div>' : ''}
+                            <div class="p-4 rounded-full mb-4 ${isDecimalUnlocked ? 'bg-emerald-100' : 'bg-slate-200'}">
+                                <i data-lucide="ruler" class="w-8 h-8 ${isDecimalUnlocked ? 'text-emerald-600' : 'text-slate-400'}"></i>
+                            </div>
+                            <h2 class="text-xl font-bold mb-1">2. 소수 사냥꾼</h2>
+                            <p class="text-sm text-slate-500">소수점 위치 정복 (20문제)</p>
+                        </button>
+
+                        <!-- 3. 비교 -->
+                        <button onclick="${isCompareUnlocked ? "startGame('compare')" : ''}" class="group relative p-6 rounded-2xl border-2 transition-all flex flex-col items-center ${isCompareUnlocked ? 'bg-white border-indigo-200 hover:shadow-xl hover:-translate-y-1 cursor-pointer' : 'bg-slate-100 border-slate-200 opacity-70 cursor-not-allowed'}">
+                             ${!isCompareUnlocked ? '<div class="absolute inset-0 bg-slate-100/50 flex items-center justify-center rounded-2xl"><i data-lucide="lock" class="w-10 h-10 text-slate-400"></i></div>' : ''}
+                             ${state.completedLevels.includes('compare') ? '<div class="absolute top-4 right-4 bg-indigo-100 text-indigo-600 p-1 rounded-full z-10"><i data-lucide="check-circle" class="w-5 h-5"></i></div>' : ''}
+                            <div class="p-4 rounded-full mb-4 ${isCompareUnlocked ? 'bg-indigo-100' : 'bg-slate-200'}">
+                                <i data-lucide="trophy" class="w-8 h-8 ${isCompareUnlocked ? 'text-indigo-600' : 'text-slate-400'}"></i>
+                            </div>
+                            <h2 class="text-xl font-bold mb-1">3. 크기 비교 왕</h2>
+                            <p class="text-sm text-slate-500">분수 vs 소수 (20문제)</p>
+                        </button>
+
+                        <!-- 4. AI -->
+                        <button onclick="${isAiUnlocked ? "setupAi()" : ''}" class="group relative p-6 rounded-2xl border-2 transition-all flex flex-col items-center ${isAiUnlocked ? 'bg-gradient-to-br from-violet-500 to-fuchsia-600 border-transparent hover:shadow-xl hover:-translate-y-1 cursor-pointer text-white' : 'bg-slate-100 border-slate-200 opacity-70 cursor-not-allowed'}">
+                             ${!isAiUnlocked ? '<div class="absolute inset-0 bg-slate-100/50 flex items-center justify-center rounded-2xl"><i data-lucide="lock" class="w-10 h-10 text-slate-400"></i></div>' : ''}
+                             ${state.completedLevels.includes('ai') ? '<div class="absolute top-4 right-4 bg-white/20 p-1 rounded-full z-10"><i data-lucide="check-circle" class="w-5 h-5 text-white"></i></div>' : ''}
+                            <div class="p-4 rounded-full mb-4 ${isAiUnlocked ? 'bg-white/20' : 'bg-slate-200'}">
+                                <i data-lucide="sparkles" class="w-8 h-8 ${isAiUnlocked ? 'text-white' : 'text-slate-400'}"></i>
+                            </div>
+                            <h2 class="text-xl font-bold mb-1">4. AI 보너스</h2>
+                            <p class="text-sm ${isAiUnlocked ? 'text-white/80' : 'text-slate-500'}">나만의 문제 만들기</p>
+                            ${isAiUnlocked ? '<div class="absolute top-4 right-4 bg-white/20 px-2 py-1 rounded text-xs font-bold">UNLOCKED</div>' : ''}
+                        </button>
+                    </div>
+                </div>
+            `;
+            app.innerHTML = template;
+        }
+
+        function renderGame() {
+            const total = state.mode === 'ai' ? AI_TOTAL_PROBLEMS : TOTAL_PROBLEMS;
+            const progress = (state.problemCount / total) * 100;
+            const q = state.question;
+
+            // 옵션 HTML 생성
+            const optionsHtml = q.options.map(opt => `
+                <button onclick="handleAnswer('${opt}')" 
+                    ${state.feedback ? 'disabled' : ''}
+                    class="p-6 rounded-2xl text-xl font-bold shadow-sm transition-all transform active:scale-95 whitespace-normal border
+                    ${state.feedback 
+                        ? (opt == q.answer ? 'bg-green-500 text-white ring-4 ring-green-200 border-green-500' : 'bg-slate-100 text-slate-300 border-slate-100')
+                        : 'bg-white text-slate-700 hover:bg-blue-50 hover:text-blue-600 hover:shadow-md border-slate-100'
+                    }">
+                    ${opt}
+                </button>
+            `).join('');
+
+            const template = `
+                <!-- Top Bar -->
+                <div class="bg-white p-4 shadow-sm flex justify-between items-center sticky top-0 z-10">
+                    <div class="flex items-center gap-4">
+                        <button onclick="goToMenu()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x-circle"></i></button>
+                        <div>
+                            <span class="text-xs font-bold text-slate-400 block">MODE</span>
+                            <span class="text-sm font-bold text-slate-700">
+                                ${state.mode === 'fraction' ? '1. 분수 마스터' : 
+                                  state.mode === 'decimal' ? '2. 소수 사냥꾼' : 
+                                  state.mode === 'compare' ? '3. 크기 비교 왕' : '4. AI 보너스'}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="text-right">
+                             <span class="text-xs font-bold text-slate-400 block">정답</span>
+                             <span class="${state.correctCount >= PASS_THRESHOLD && state.mode !== 'ai' ? 'text-green-600' : 'text-slate-600'} font-bold">
+                                ${state.correctCount} / ${total}
+                             </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progress -->
+                <div class="w-full bg-slate-200 h-2">
+                    <div class="h-2 transition-all duration-500 ${state.mode === 'ai' ? 'bg-violet-500' : 'bg-green-500'}" style="width: ${progress}%"></div>
+                </div>
+
+                <!-- Main -->
+                <div class="flex-1 flex flex-col items-center justify-center p-6 relative bg-slate-50 overflow-y-auto">
+                    <div class="mb-4 text-slate-500 font-medium bg-slate-200 px-3 py-1 rounded-full text-sm">
+                        문제 ${state.problemCount} / ${total}
+                    </div>
+
+                    <div class="bg-white rounded-3xl p-8 md:p-12 shadow-lg mb-8 w-full text-center flex justify-center items-center min-h-[200px] flex-col">
+                        ${q.isAi ? `<div class="mb-4 flex items-center gap-2 text-violet-500 font-bold bg-violet-50 px-3 py-1 rounded-full text-sm"><i data-lucide="sparkles" class="w-4 h-4"></i> ${state.aiTopic} 테마</div>` : ''}
+                        
+                        <!-- 문제 텍스트 표시 (HTML 렌더링) -->
+                        <div class="text-2xl font-medium leading-relaxed flex flex-wrap items-center justify-center gap-2">
+                            ${q.text}
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                        ${optionsHtml}
+                    </div>
+                </div>
+
+                <!-- Feedback -->
+                ${state.feedback ? `
+                    <div class="absolute bottom-24 left-6 right-6 p-4 rounded-xl shadow-xl border-l-8 text-left z-20 fade-in
+                        ${state.feedback.type === 'correct' ? 'bg-green-50 border-green-500 text-green-800' : 'bg-red-50 border-red-500 text-red-800'}">
+                        <div class="flex items-start gap-3">
+                            <i data-lucide="${state.feedback.type === 'correct' ? 'check-circle' : 'x-circle'}" class="shrink-0"></i>
+                            <div>
+                                <h3 class="font-bold text-lg mb-1">${state.feedback.type === 'correct' ? '정답입니다!' : '아쉬워요!'}</h3>
+                                <p class="text-sm opacity-90 whitespace-pre-line">${state.feedback.msg}</p>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+            `;
+            app.innerHTML = template;
+        }
+
+        function renderResult() {
+            const isPass = state.mode === 'ai' || state.correctCount >= PASS_THRESHOLD;
+            const total = state.mode === 'ai' ? AI_TOTAL_PROBLEMS : TOTAL_PROBLEMS;
+            const percent = (state.correctCount / total) * 100;
+
+            const nextMsg = state.mode === 'fraction' ? '축하합니다!<br>다음 단계 [소수 사냥꾼]이 열렸습니다!' :
+                            state.mode === 'decimal' ? '축하합니다!<br>다음 단계 [크기 비교 왕]이 열렸습니다!' :
+                            state.mode === 'compare' ? '대단해요!<br>최종 보상 [AI 보너스]가 열렸습니다!' :
+                            '모든 훈련을 훌륭하게 마쳤습니다!';
+
+            const template = `
+                <div class="flex flex-col items-center justify-center h-full p-6 fade-in text-center">
+                    <div class="mb-6">
+                        ${isPass 
+                            ? '<div class="bg-yellow-100 p-6 rounded-full bounce"><i data-lucide="trophy" class="w-16 h-16 text-yellow-500"></i></div>'
+                            : '<div class="bg-red-100 p-6 rounded-full"><i data-lucide="frown" class="w-16 h-16 text-red-500"></i></div>'
+                        }
+                    </div>
+                    
+                    <h2 class="text-3xl font-bold text-slate-800 mb-2">${isPass ? (state.mode === 'ai' ? '보너스 미션 성공!' : '스테이지 클리어!') : '미션 실패!'}</h2>
+                    <p class="text-slate-600 mb-8">${isPass ? nextMsg : `아쉽네요! ${PASS_THRESHOLD}문제 이상 맞춰야 통과입니다.<br>조금만 더 집중해서 다시 도전해볼까요?`}</p>
+                    
+                    <div class="bg-slate-50 rounded-xl p-6 mb-8 w-full max-w-md">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-slate-500">정답 수</span>
+                            <span class="text-2xl font-bold ${isPass ? 'text-blue-600' : 'text-red-600'}">${state.correctCount} / ${total}</span>
+                        </div>
+                        <div class="relative w-full bg-slate-200 rounded-full h-4 mt-2">
+                             ${state.mode !== 'ai' ? `<div class="absolute top-0 bottom-0 w-1 bg-black/20 z-10" style="left: ${(PASS_THRESHOLD/total)*100}%"></div>` : ''}
+                            <div class="h-4 rounded-full transition-all duration-1000 ${isPass ? 'bg-blue-500' : 'bg-red-500'}" style="width: ${percent}%"></div>
+                        </div>
+                        ${state.mode !== 'ai' ? `<p class="text-xs text-slate-400 mt-1 text-right">목표: ${PASS_THRESHOLD}개</p>` : ''}
+                    </div>
+
+                    <div class="flex gap-4">
+                        ${!isPass ? `<button onclick="startGame('${state.mode}')" class="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"><i data-lucide="rotate-ccw"></i> 다시 도전하기</button>` : ''}
+                        <button onclick="goToMenu()" class="flex items-center gap-2 px-6 py-3 bg-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-300 transition-colors">${isPass ? '메뉴로 돌아가기' : '그만하기'}</button>
+                    </div>
+                </div>
+            `;
+            app.innerHTML = template;
+        }
+
+        function renderAiSetup() {
+             const template = `
+                <div class="flex flex-col items-center justify-center h-full p-6 fade-in bg-violet-50 w-full h-full">
+                    <div class="max-w-md w-full bg-white p-8 rounded-3xl shadow-xl">
+                        <div class="text-center mb-6">
+                            <i data-lucide="sparkles" class="inline-block text-violet-500 mb-2 w-12 h-12"></i>
+                            <h2 class="text-2xl font-bold text-slate-800">나만의 수학 문제 만들기</h2>
+                            <p class="text-slate-500">좋아하는 주제를 알려주세요!</p>
+                        </div>
+                        
+                        <div class="space-y-4 mb-6">
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-1">어떤 주제가 좋나요?</label>
+                                <input type="text" id="ai-topic-input" value="${state.aiTopic}" placeholder="예: 마인크래프트, 탕후루, 손흥민" class="w-full p-4 bg-slate-100 rounded-xl border-2 border-transparent focus:border-violet-500 outline-none transition-all font-bold">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-1">문제 유형</label>
+                                <div class="flex gap-2">
+                                    <button onclick="setAiMathType('fraction')" class="flex-1 p-3 rounded-xl border-2 font-bold transition-colors ${state.aiMathType === 'fraction' ? 'border-violet-500 bg-violet-50 text-violet-700' : 'border-slate-200 text-slate-400'}">분수</button>
+                                    <button onclick="setAiMathType('decimal')" class="flex-1 p-3 rounded-xl border-2 font-bold transition-colors ${state.aiMathType === 'decimal' ? 'border-violet-500 bg-violet-50 text-violet-700' : 'border-slate-200 text-slate-400'}">소수</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        ${state.aiError ? `<div class="mb-4 p-3 bg-red-50 text-red-500 rounded-lg text-sm text-center font-bold">${state.aiError}</div>` : ''}
+
+                        <div class="flex flex-col gap-3">
+                            <button onclick="generateAIProblemSet()" ${state.isAiLoading ? 'disabled' : ''} class="w-full py-4 bg-violet-600 text-white rounded-xl font-bold text-lg hover:bg-violet-700 transition-all flex justify-center items-center gap-2 disabled:opacity-50">
+                                ${state.isAiLoading ? '<i data-lucide="loader-2" class="animate-spin"></i> 만드는 중...' : '<i data-lucide="sparkles"></i> 문제 세트 만들기'}
+                            </button>
+                            <button onclick="goToMenu()" class="w-full py-3 text-slate-400 font-bold hover:text-slate-600">뒤로 가기</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            app.innerHTML = template;
+            document.getElementById('ai-topic-input').addEventListener('input', (e) => state.aiTopic = e.target.value);
+        }
+
+        // --- 로직 함수들 ---
+
+        function goToMenu() {
+            state.view = 'menu';
+            render();
+        }
+
+        function startGame(mode) {
+            state.mode = mode;
+            state.score = 0;
+            state.streak = 0;
+            state.correctCount = 0;
+            state.problemCount = 1;
+            state.feedback = null;
+            state.view = 'playing';
+            
+            generateProblem();
+            render();
+        }
+
+        function setupAi() {
+            state.view = 'ai-setup';
+            state.aiError = null;
+            render();
+        }
+
+        function setAiMathType(type) {
+            state.aiMathType = type;
+            render();
+        }
+
+        function resetProgress() {
+            if(confirm('정말 초기화하시겠습니까?')) {
+                state.completedLevels = [];
+                localStorage.removeItem('drill_completed_levels');
+                render();
+            }
+        }
+
+        function handleAnswer(selectedOpt) {
+            if (state.feedback) return;
+
+            const isCorrect = String(selectedOpt) === String(state.question.answer);
+
+            if (isCorrect) {
+                state.score += 10 + (state.streak * 2);
+                state.streak++;
+                state.correctCount++;
+                state.feedback = { type: 'correct', msg: state.question.isAi ? state.question.explanation : '정답입니다! 참 잘했어요.' };
+            } else {
+                state.streak = 0;
+                state.feedback = { type: 'incorrect', msg: state.question.hint };
+            }
+            render();
+
+            setTimeout(() => {
+                const total = state.mode === 'ai' ? AI_TOTAL_PROBLEMS : TOTAL_PROBLEMS;
+                
+                if (state.problemCount >= total) {
+                    if (state.mode === 'ai') {
+                         completeLevel('ai');
+                    } else {
+                        if (state.correctCount >= PASS_THRESHOLD) completeLevel(state.mode);
+                    }
+                    state.view = 'result';
+                    render();
+                } else {
+                    state.problemCount++;
+                    state.feedback = null;
+                    if (state.mode === 'ai') {
+                        state.question = formatAiProblem(state.aiProblemSet[state.problemCount - 1]);
+                    } else {
+                        generateProblem();
+                    }
+                    render();
+                }
+            }, isCorrect ? 1500 : 3000);
+        }
+
+        function completeLevel(mode) {
+            if (!state.completedLevels.includes(mode)) {
+                state.completedLevels.push(mode);
+                localStorage.setItem('drill_completed_levels', JSON.stringify(state.completedLevels));
+            }
+        }
+
+        // --- 문제 생성 로직 (수정됨: HTML 문자열 생성) ---
+
+        function generateProblem() {
+            let p = {};
+            
+            if (state.mode === 'fraction') {
+                const type = Math.random() > 0.5 ? 1 : 2; // 1: nat/frac, 2: frac/frac
+                if (type === 1) {
+                    // 자연수 ÷ 분수
+                    const nat = Math.floor(Math.random() * 5) + 2;
+                    const den = Math.floor(Math.random() * 5) + 2;
+                    const num = Math.floor(Math.random() * (den - 1)) + 1;
+                    
+                    // HTML로 분수 표현: 자연수 [÷] 분수
+                    p.text = `<span class="text-3xl font-bold">${nat}</span> <span class="mx-2">÷</span> ${makeFractionHtml(num, den)}`;
+                    p.answer = (nat * den) / num;
+                    p.hint = `${nat} × ${den}/${num} (으)로 바꾸어 계산해보세요.`;
+                } else {
+                    // 분수 ÷ 분수
+                    const den1 = Math.floor(Math.random() * 5) + 3;
+                    const num1 = Math.floor(Math.random() * (den1 - 1)) + 1;
+                    const den2 = den1; 
+                    const num2 = Math.floor(Math.random() * (num1 - 1)) + 1;
+                    
+                    // HTML로 분수 표현: 분수 [÷] 분수
+                    p.text = `${makeFractionHtml(num1, den1)} <span class="mx-2">÷</span> ${makeFractionHtml(num2, den2)}`;
+                    p.answer = (num1 * den2) / (den1 * num2);
+                    p.hint = "나눗셈을 곱셈으로 바꾸면 뒤의 분수 위아래가 바뀝니다.";
+                }
+            } else if (state.mode === 'decimal') {
+                // 소수는 텍스트 그대로 사용해도 무방
+                const type = Math.random() > 0.5 ? 1 : 2; 
+                if (type === 1) {
+                    const a = (Math.floor(Math.random() * 90) + 10) / 10;
+                    const b = Math.floor(Math.random() * 9) + 1;
+                    p.text = `${a} × ${b}`;
+                    p.answer = parseFloat((a * b).toFixed(1));
+                    p.hint = "자연수처럼 계산한 뒤 소수점을 찍어보세요.";
+                } else {
+                    const result = (Math.floor(Math.random() * 50) + 10) / 10;
+                    const divisor = Math.floor(Math.random() * 5) + 2;
+                    const dividend = parseFloat((result * divisor).toFixed(1));
+                    p.text = `${dividend} ÷ ${divisor}`;
+                    p.answer = result;
+                    p.hint = "소수점을 그대로 올려 찍는 것을 잊지 마세요.";
+                }
+            } else if (state.mode === 'compare') {
+                const base = Math.floor(Math.random() * 4);
+                const variants = [0.25, 0.5, 0.75];
+                const vIdx = Math.floor(Math.random() * 3);
+                const val = base + variants[vIdx];
+                const isLeftBig = Math.random() > 0.5;
+                const leftVal = isLeftBig ? val + 0.1 : val;
+                const rightVal = isLeftBig ? val : val + 0.1;
+                
+                // 크기 비교 모드에서도 분수 HTML 적용
+                const leftText = Math.random() > 0.5 ? leftVal : toFractionHtml(leftVal);
+                const rightText = typeof leftText === 'number' ? toFractionHtml(rightVal) : rightVal;
+                
+                p.text = `
+                    <div class="flex items-center gap-4 bg-white p-4 rounded-xl shadow-sm border">
+                        ${typeof leftText === 'number' ? leftText : leftText}
+                    </div>
+                    <span class="text-slate-400 font-bold mx-2">vs</span>
+                    <div class="flex items-center gap-4 bg-white p-4 rounded-xl shadow-sm border">
+                        ${typeof rightText === 'number' ? rightText : rightText}
+                    </div>
+                `;
+                p.answer = leftVal > rightVal ? '>' : '<';
+                p.type = 'compare';
+                p.hint = "분수를 소수로, 혹은 소수를 분수로 바꾸어보세요.";
+            }
+
+            // 보기 생성
+            let opts = [];
+            if (p.type === 'compare') opts = ['>', '<', '='];
+            else {
+                opts = [p.answer];
+                while (opts.length < 4) {
+                    let wrong;
+                    if (state.mode === 'fraction') wrong = p.answer * (Math.random() * 0.5 + 0.75);
+                    else wrong = p.answer + (Math.random() > 0.5 ? 0.1 : -0.1);
+                    
+                    let wrongFixed = parseFloat(wrong.toFixed(2));
+                    if (!opts.some(o => Math.abs(o - wrongFixed) < 0.01)) opts.push(wrongFixed);
+                }
+                opts.sort(() => Math.random() - 0.5);
+            }
+            p.options = opts;
+            state.question = p;
+        }
+
+        // 분수 변환 (HTML 반환)
+        function toFractionHtml(val) {
+            const whole = Math.floor(val);
+            const decimal = Math.round((val - whole) * 100);
+            
+            // 대분수 처리: 자연수 + 분수 HTML
+            const renderMixed = (n, d) => {
+                return `
+                    <div class="flex items-center gap-1">
+                        ${whole > 0 ? `<span class="text-2xl font-bold">${whole}</span>` : ''}
+                        ${makeFractionHtml(n, d)}
+                    </div>
+                `;
+            }
+
+            if (decimal === 25) return renderMixed(1, 4);
+            if (decimal === 50) return renderMixed(1, 2);
+            if (decimal === 75) return renderMixed(3, 4);
+            return val;
+        }
+
+        // --- AI API 호출 로직 ---
+
+        async function generateAIProblemSet() {
+            if (!state.aiTopic) {
+                state.aiError = "주제를 입력해주세요!";
+                render();
+                return;
+            }
+            
+            state.isAiLoading = true;
+            state.aiError = null;
+            render();
+
+            try {
+                if (!API_URL) {
+                    await new Promise(r => setTimeout(r, 2000)); 
+                    const demoProblems = Array(5).fill(0).map((_, i) => ({
+                        question: `[데모] ${state.aiTopic} 관련 재미있는 수학 문제 ${i+1}번입니다. (서버 연결 필요)`,
+                        options: ["정답", "오답1", "오답2", "오답3"],
+                        answer: "정답",
+                        hint: "서버 연결이 되지 않아 데모 문제가 표시됩니다.",
+                        explanation: "API_URL을 설정해야 실제 AI 문제가 생성됩니다."
+                    }));
+                    startAiGame(demoProblems);
+                } else {
+                    const res = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ topic: state.aiTopic, mathType: state.aiMathType })
+                    });
+                    
+                    if (!res.ok) throw new Error('서버 연결 실패');
+                    const data = await res.json();
+                    
+                    if (!Array.isArray(data)) throw new Error('데이터 형식 오류');
+                    startAiGame(data);
+                }
+            } catch (err) {
+                console.error(err);
+                state.aiError = "AI 선생님을 부르는데 실패했어요.";
+                state.isAiLoading = false;
+                render();
+            }
+        }
+
+        function startAiGame(problemSet) {
+            state.aiProblemSet = problemSet;
+            state.isAiLoading = false;
+            state.problemCount = 1;
+            state.score = 0;
+            state.streak = 0;
+            state.correctCount = 0;
+            state.feedback = null;
+            state.mode = 'ai';
+            state.question = formatAiProblem(problemSet[0]);
+            state.view = 'playing';
+            render();
+        }
+
+        function formatAiProblem(raw) {
+            return {
+                text: raw.question,
+                options: raw.options,
+                answer: raw.answer,
+                hint: raw.hint,
+                explanation: raw.explanation,
+                isAi: true
+            };
+        }
+
+        render();
+
+    </script>
+</body>
+</html>
