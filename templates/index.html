@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>"수와 양" 튼튼 교실</title>
+    <title>"수와 양" 튼튼 교실 (ver 1.04)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -25,8 +25,9 @@
         // ⚙️ 설정 영역: 같은 서버 내 API 사용
         const API_URL = "/api/generate-problems"; 
 
-        const TOTAL_PROBLEMS = 20;
-        const PASS_THRESHOLD = 15;
+        // 📝 수정된 부분: 문제 수 10개, 통과 기준 7개로 변경
+        const TOTAL_PROBLEMS = 10;
+        const PASS_THRESHOLD = 7;
         const AI_TOTAL_PROBLEMS = 5;
 
         let state = {
@@ -53,8 +54,13 @@
 
         const app = document.getElementById('app');
 
-        function makeFractionHtml(num, den) {
-            return `<div class="fraction-container text-2xl font-bold text-slate-800"><span>${num}</span><span class="fraction-line border-slate-800"></span><span>${den}</span></div>`;
+        // 분수/대분수 HTML 생성 헬퍼 함수
+        function makeFractionDisplay(whole, num, den) {
+            const fracPart = `<div class="fraction-container text-2xl font-bold text-slate-800"><span>${num}</span><span class="fraction-line border-slate-800"></span><span>${den}</span></div>`;
+            if (whole > 0) {
+                return `<div class="flex items-center gap-1"><span class="text-3xl font-bold">${whole}</span>${fracPart}</div>`;
+            }
+            return fracPart;
         }
 
         // --- 렌더링 함수들 ---
@@ -78,7 +84,7 @@
                         <div class="inline-block p-4 bg-blue-100 rounded-full mb-4">
                             <i data-lucide="calculator" class="w-12 h-12 text-blue-600"></i>
                         </div>
-                        <h1 class="text-3xl font-extrabold text-slate-800 mb-2">"수와 양" 튼튼 교실</h1>
+                        <h1 class="text-3xl font-extrabold text-slate-800 mb-2">"수와 양" 튼튼 교실 (ver 1.04)</h1>
                         <p class="text-lg text-slate-600">각 단계 <span class="text-orange-600 font-bold">${PASS_THRESHOLD}문제 이상</span> 맞춰야 통과!</p>
                         ${state.completedLevels.length > 0 ? `<button onclick="resetProgress()" class="absolute right-0 top-0 text-xs text-slate-400 underline hover:text-slate-600">초기화</button>` : ''}
                     </header>
@@ -89,7 +95,7 @@
                                 <i data-lucide="brain" class="w-8 h-8 text-orange-600"></i>
                             </div>
                             <h2 class="text-xl font-bold mb-1">1. 분수 마스터</h2>
-                            <p class="text-sm text-slate-500">분수의 나눗셈 (20문제)</p>
+                            <p class="text-sm text-slate-500">분수와 대분수의 나눗셈<br>(20문제)</p>
                         </button>
                         <button onclick="${isDecimalUnlocked ? "startGame('decimal')" : ''}" class="group relative p-6 rounded-2xl border-2 transition-all flex flex-col items-center ${isDecimalUnlocked ? 'bg-white border-emerald-200 hover:shadow-xl hover:-translate-y-1 cursor-pointer' : 'bg-slate-100 border-slate-200 opacity-70 cursor-not-allowed'}">
                             ${!isDecimalUnlocked ? '<div class="absolute inset-0 bg-slate-100/50 flex items-center justify-center rounded-2xl"><i data-lucide="lock" class="w-10 h-10 text-slate-400"></i></div>' : ''}
@@ -98,7 +104,7 @@
                                 <i data-lucide="ruler" class="w-8 h-8 ${isDecimalUnlocked ? 'text-emerald-600' : 'text-slate-400'}"></i>
                             </div>
                             <h2 class="text-xl font-bold mb-1">2. 소수 사냥꾼</h2>
-                            <p class="text-sm text-slate-500">소수점 위치 정복 (20문제)</p>
+                            <p class="text-sm text-slate-500">소수점 위치와 나눗셈<br>(20문제)</p>
                         </button>
                         <button onclick="${isCompareUnlocked ? "startGame('compare')" : ''}" class="group relative p-6 rounded-2xl border-2 transition-all flex flex-col items-center ${isCompareUnlocked ? 'bg-white border-indigo-200 hover:shadow-xl hover:-translate-y-1 cursor-pointer' : 'bg-slate-100 border-slate-200 opacity-70 cursor-not-allowed'}">
                              ${!isCompareUnlocked ? '<div class="absolute inset-0 bg-slate-100/50 flex items-center justify-center rounded-2xl"><i data-lucide="lock" class="w-10 h-10 text-slate-400"></i></div>' : ''}
@@ -107,7 +113,7 @@
                                 <i data-lucide="trophy" class="w-8 h-8 ${isCompareUnlocked ? 'text-indigo-600' : 'text-slate-400'}"></i>
                             </div>
                             <h2 class="text-xl font-bold mb-1">3. 크기 비교 왕</h2>
-                            <p class="text-sm text-slate-500">분수 vs 소수 (20문제)</p>
+                            <p class="text-sm text-slate-500">분수 vs 소수 심화<br>(20문제)</p>
                         </button>
                         <button onclick="${isAiUnlocked ? "setupAi()" : ''}" class="group relative p-6 rounded-2xl border-2 transition-all flex flex-col items-center ${isAiUnlocked ? 'bg-gradient-to-br from-violet-500 to-fuchsia-600 border-transparent hover:shadow-xl hover:-translate-y-1 cursor-pointer text-white' : 'bg-slate-100 border-slate-200 opacity-70 cursor-not-allowed'}">
                              ${!isAiUnlocked ? '<div class="absolute inset-0 bg-slate-100/50 flex items-center justify-center rounded-2xl"><i data-lucide="lock" class="w-10 h-10 text-slate-400"></i></div>' : ''}
@@ -316,124 +322,153 @@
             }
         }
 
-        // --- 문제 생성 로직 (수정됨: 소수 무한 루프 해결 및 오답 다양화) ---
+        // --- 문제 생성 로직 (난이도 상향 버전) ---
         function generateProblem() {
             let p = {};
+            
             if (state.mode === 'fraction') {
-                const type = Math.random() > 0.5 ? 1 : 2; 
-                if (type === 1) {
-                    const nat = Math.floor(Math.random() * 5) + 2;
-                    const den = Math.floor(Math.random() * 5) + 2;
-                    const num = Math.floor(Math.random() * (den - 1)) + 1;
-                    p.text = `<span class="text-3xl font-bold">${nat}</span> <span class="mx-2">÷</span> ${makeFractionHtml(num, den)}`;
-                    p.answer = (nat * den) / num;
-                    p.hint = `${nat} × ${den}/${num} (으)로 바꾸어 계산해보세요.`;
-                } else {
-                    const den1 = Math.floor(Math.random() * 5) + 3;
-                    const num1 = Math.floor(Math.random() * (den1 - 1)) + 1;
-                    const den2 = den1; 
-                    const num2 = Math.floor(Math.random() * (num1 - 1)) + 1;
-                    p.text = `${makeFractionHtml(num1, den1)} <span class="mx-2">÷</span> ${makeFractionHtml(num2, den2)}`;
-                    p.answer = (num1 * den2) / (den1 * num2);
-                    p.hint = "나눗셈을 곱셈으로 바꾸면 뒤의 분수 위아래가 바뀝니다.";
-                }
+                // 분수 마스터: 대분수 나눗셈 포함 (6학년 2학기 수준)
+                const type = Math.random() > 0.5 ? 1 : 2; // 1: 대분수 ÷ 분수, 2: 대분수 ÷ 대분수
+                
+                // Helper: Generate Fraction Object {w, n, d, val}
+                const genFrac = (maxWhole, maxDen) => {
+                    const d = Math.floor(Math.random() * (maxDen - 2)) + 2; // 2 ~ maxDen
+                    const n = Math.floor(Math.random() * (d - 1)) + 1;
+                    const w = Math.floor(Math.random() * maxWhole);
+                    const val = (w * d + n) / d;
+                    return { w, n, d, val };
+                };
+
+                const f1 = genFrac(4, 9); // 대분수 가능성 높음
+                const f2 = genFrac(3, 9);
+
+                // Ensure f2 is not 0 (though genFrac logic prevents 0/0, w=0 and n>0 ensures value > 0)
+                // Also ensure division yields reasonable result (not too huge/tiny)
+                // Just randomize operations slightly to guarantee "Mixed Number" appearance
+                
+                // Force at least one mixed number for visual difficulty
+                if (f1.w === 0 && f2.w === 0) f1.w = 1; 
+
+                p.text = `${makeFractionDisplay(f1.w, f1.n, f1.d)} <span class="mx-2">÷</span> ${makeFractionDisplay(f2.w, f2.n, f2.d)}`;
+                
+                // Calculate answer
+                const ansVal = f1.val / f2.val;
+                
+                // Answer formatting: Simplify to Mixed Number or Proper Fraction for options?
+                // For this drill, we'll store float for comparison but display options as integers/decimals if clean, or approximate
+                // Ideally, options should be Fraction strings, but our handleAnswer checks String equality.
+                // Let's use simplified float checking for now, but generated options will be floats.
+                // *Challenge*: Rendering fractional options in buttons is hard with simple strings.
+                // We will stick to Decimal/Integer answers if possible, OR make the problem result in clean integers/simple fractions.
+                
+                // Strategy: Generate simple Answer first, then derive Question
+                // Ans = a/b. Let F2 = c/d. Then F1 = Ans * F2.
+                // This ensures clean answers.
+                
+                // New Strategy: Reverse Engineering
+                const ansN = Math.floor(Math.random() * 5) + 1; // 1~5
+                const ansD = Math.floor(Math.random() * 4) + 1; // 1~4
+                const ans = ansN / ansD; // Result
+                
+                const f2_d = Math.floor(Math.random() * 8) + 2; 
+                const f2_n = Math.floor(Math.random() * (f2_d * 3 - 1)) + 1; // Allows mixed numbers
+                const f2_val = f2_n / f2_d;
+                
+                const f1_val = ans * f2_val;
+                
+                // We need to display f1 and f2 as fractions.
+                // f1 might be complex. Let's stick to the original random generation 
+                // and round answers to 2 decimal places for checking, or use approximate options.
+                // Given the constraint of the current UI (button options), keeping options as numbers is safer.
+                
+                p.answer = parseFloat(ansVal.toFixed(2));
+                p.hint = "대분수를 가분수로 고친 뒤 계산하세요. 역수를 곱하는 것 잊지 마세요!";
+
             } else if (state.mode === 'decimal') {
-                const type = Math.random() > 0.5 ? 1 : 2; 
-                if (type === 1) {
-                    const a = (Math.floor(Math.random() * 90) + 10) / 10;
-                    const b = Math.floor(Math.random() * 9) + 1;
+                // 소수 사냥꾼: 난이도 상향 (소수 ÷ 소수, 자연수 ÷ 자연수 = 소수)
+                const type = Math.random();
+                
+                if (type < 0.33) {
+                    // 1. 소수 x 소수 (자리수 늘림)
+                    const a = (Math.floor(Math.random() * 90) + 10) / 10; // 1.0 ~ 9.9
+                    const b = (Math.floor(Math.random() * 90) + 10) / 10; // 1.0 ~ 9.9
                     p.text = `${a} × ${b}`;
-                    p.answer = parseFloat((a * b).toFixed(1));
-                    p.hint = "자연수처럼 계산한 뒤 소수점을 찍어보세요.";
-                } else {
-                    const result = (Math.floor(Math.random() * 50) + 10) / 10;
-                    const divisor = Math.floor(Math.random() * 5) + 2;
-                    const dividend = parseFloat((result * divisor).toFixed(1));
+                    p.answer = parseFloat((a * b).toFixed(2));
+                    p.hint = "소수점을 무시하고 계산한 뒤, 두 소수의 소수점 아래 자리 수 합만큼 찍어주세요.";
+                } else if (type < 0.66) {
+                    // 2. 소수 ÷ 소수 (결과가 깔끔하게)
+                    const result = (Math.floor(Math.random() * 90) + 10) / 10; // 1.0 ~ 9.9
+                    const divisor = (Math.floor(Math.random() * 9) + 1) / 10; // 0.1 ~ 0.9
+                    const dividend = parseFloat((result * divisor).toFixed(2));
                     p.text = `${dividend} ÷ ${divisor}`;
                     p.answer = result;
-                    p.hint = "소수점을 그대로 올려 찍는 것을 잊지 마세요.";
+                    p.hint = "나누는 수와 나누어지는 수의 소수점을 똑같이 오른쪽으로 옮겨서 계산하세요.";
+                } else {
+                    // 3. 자연수 ÷ 자연수 (몫이 소수)
+                    const divisor = Math.random() > 0.5 ? 4 : (Math.random() > 0.5 ? 5 : 8); // 4, 5, 8 (end cleanly)
+                    const dividend = Math.floor(Math.random() * 20) + 1; 
+                    // Make sure it's not evenly divisible
+                    if (dividend % divisor === 0) p.text = `${dividend + 1} ÷ ${divisor}`;
+                    else p.text = `${dividend} ÷ ${divisor}`;
+                    
+                    p.answer = parseFloat((eval(p.text)).toFixed(3)); // Evaluate text directly
+                    p.hint = "나누어 떨어지지 않을 때는 0을 내려서 계속 계산하세요.";
                 }
+
             } else if (state.mode === 'compare') {
+                // (이전 상향된 로직 유지)
                 const dens = [2, 4, 5, 8, 10, 20, 25, 40, 50];
                 const den = dens[Math.floor(Math.random() * dens.length)];
                 const whole = Math.floor(Math.random() * 6); 
                 let num = Math.floor(Math.random() * (den - 1)) + 1;
-                
                 const fracVal = whole + (num / den);
                 
                 const diffType = Math.random();
                 let decVal;
-                
-                if (diffType < 0.45) {
-                    decVal = fracVal + (Math.random() * 0.09 + 0.01);
-                } else if (diffType < 0.9) {
-                    decVal = fracVal - (Math.random() * 0.09 + 0.01);
-                } else {
-                    decVal = fracVal;
-                }
-                
+                if (diffType < 0.45) decVal = fracVal + (Math.random() * 0.09 + 0.01);
+                else if (diffType < 0.9) decVal = fracVal - (Math.random() * 0.09 + 0.01);
+                else decVal = fracVal;
                 decVal = parseFloat(decVal.toFixed(2));
                 
                 const showFracLeft = Math.random() > 0.5;
-                
-                const fracHtml = whole > 0 
-                    ? `<div class="flex items-center gap-1"><span class="text-2xl font-bold">${whole}</span>${makeFractionHtml(num, den)}</div>`
-                    : makeFractionHtml(num, den);
+                const fracHtml = makeFractionDisplay(whole, num, den);
                 
                 const leftContent = showFracLeft ? fracHtml : decVal;
                 const rightContent = showFracLeft ? decVal : fracHtml;
-                
                 const leftValReal = showFracLeft ? fracVal : decVal;
                 const rightValReal = showFracLeft ? decVal : fracVal;
 
                 p.text = `<div class="flex items-center gap-4 bg-white p-4 rounded-xl shadow-sm border">${leftContent}</div><span class="text-slate-400 font-bold mx-2">vs</span><div class="flex items-center gap-4 bg-white p-4 rounded-xl shadow-sm border">${rightContent}</div>`;
-                
                 if (Math.abs(leftValReal - rightValReal) < 0.0001) p.answer = '=';
                 else p.answer = leftValReal > rightValReal ? '>' : '<';
-                
                 p.type = 'compare';
                 p.hint = "분수를 소수로 바꾸어 비교해보세요. (예: 1/4 = 0.25, 1/5 = 0.2, 1/8 = 0.125)";
             }
 
-            // 오답 생성 로직 강화
-            let opts = [];
-            if (p.type === 'compare') opts = ['>', '<', '='];
-            else {
-                opts = [p.answer];
-                let loopGuard = 0; // 무한루프 방지용 카운터
-                
+            // --- 오답 생성 (공통) ---
+            let opts = [p.answer];
+            if (p.type === 'compare') {
+                opts = ['>', '<', '='];
+            } else {
+                let loopGuard = 0;
                 while (opts.length < 4 && loopGuard < 50) {
                     loopGuard++;
                     let wrong;
-                    if (state.mode === 'fraction') {
-                        wrong = p.answer * (Math.random() * 0.5 + 0.75);
-                    } else {
-                        // 소수 모드 오답 다양화
-                        const r = Math.random();
-                        if (r < 0.25) wrong = p.answer * 10; 
-                        else if (r < 0.5) wrong = p.answer / 10;
-                        else if (r < 0.75) wrong = p.answer + 0.1;
-                        else wrong = p.answer - 0.1;
-                        
-                        // 중복 시 랜덤 변형
-                        if (opts.some(o => Math.abs(o - parseFloat(wrong.toFixed(1))) < 0.01)) {
-                            wrong = p.answer + (Math.random() * 2 - 1);
-                        }
-                    }
-
-                    // 소수점 처리
-                    let wrongFixed = parseFloat(wrong.toFixed(state.mode === 'fraction' ? 2 : 1));
                     
-                    if (!opts.some(o => Math.abs(o - wrongFixed) < 0.01)) {
+                    // 오답 패턴 다양화
+                    const r = Math.random();
+                    if (r < 0.2) wrong = p.answer * 10;
+                    else if (r < 0.4) wrong = p.answer / 10;
+                    else if (r < 0.6) wrong = p.answer + (Math.random() > 0.5 ? 1 : -1);
+                    else if (r < 0.8) wrong = p.answer + (Math.random() > 0.5 ? 0.1 : -0.1);
+                    else wrong = p.answer * (Math.random() * 0.5 + 0.5);
+
+                    let wrongFixed = parseFloat(wrong.toFixed(2));
+                    if (!opts.some(o => Math.abs(o - wrongFixed) < 0.01) && !isNaN(wrongFixed)) {
                         opts.push(wrongFixed);
                     }
                 }
-                
-                // 만약 50번 시도해도 4개를 못 채웠다면? (안전장치)
-                while (opts.length < 4) {
-                    opts.push(parseFloat((p.answer + Math.random() * 10 + 1).toFixed(1)));
-                }
-
+                while (opts.length < 4) opts.push(parseFloat((p.answer + opts.length + 1).toFixed(2))); // Fallback
                 opts.sort(() => Math.random() - 0.5);
             }
             p.options = opts;
@@ -443,17 +478,19 @@
         function toFractionHtml(val) {
             const whole = Math.floor(val);
             const decimal = Math.round((val - whole) * 100);
-            const renderMixed = (n, d) => `<div class="flex items-center gap-1">${whole > 0 ? `<span class="text-2xl font-bold">${whole}</span>` : ''}${makeFractionHtml(n, d)}</div>`;
+            const renderMixed = (n, d) => makeFractionDisplay(whole, n, d);
             if (decimal === 25) return renderMixed(1, 4);
             if (decimal === 50) return renderMixed(1, 2);
             if (decimal === 75) return renderMixed(3, 4);
             return val;
         }
 
+        // ... (나머지 함수들은 이전과 동일) ...
+        
+        // (필수 함수들 재선언 - 전체 코드 복붙용)
         async function generateAIProblemSet() {
             if (!state.aiTopic) { state.aiError = "주제를 입력해주세요!"; render(); return; }
             state.isAiLoading = true; state.aiError = null; render();
-
             try {
                 const res = await fetch(API_URL, {
                     method: 'POST',
@@ -468,12 +505,10 @@
                 state.aiError = "AI 선생님을 부르는데 실패했어요."; state.isAiLoading = false; render();
             }
         }
-
         function startAiGame(problemSet) {
             state.aiProblemSet = problemSet; state.isAiLoading = false; state.problemCount = 1; state.score = 0; state.streak = 0; state.correctCount = 0; state.feedback = null; state.mode = 'ai';
             state.question = formatAiProblem(problemSet[0]); state.view = 'playing'; render();
         }
-
         function formatAiProblem(raw) {
             return { text: raw.question, options: raw.options, answer: raw.answer, hint: raw.hint, explanation: raw.explanation, isAi: true };
         }
