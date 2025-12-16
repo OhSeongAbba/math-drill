@@ -354,21 +354,45 @@
                     p.hint = "소수점을 그대로 올려 찍는 것을 잊지 마세요.";
                 }
             } else if (state.mode === 'compare') {
-                const base = Math.floor(Math.random() * 4);
-                const variants = [0.25, 0.5, 0.75];
-                const vIdx = Math.floor(Math.random() * 3);
-                const val = base + variants[vIdx];
-                const isLeftBig = Math.random() > 0.5;
-                const leftVal = isLeftBig ? val + 0.1 : val;
-                const rightVal = isLeftBig ? val : val + 0.1;
+                const dens = [2, 4, 5, 8, 10, 20, 25, 40, 50];
+                const den = dens[Math.floor(Math.random() * dens.length)];
+                const whole = Math.floor(Math.random() * 6); 
+                let num = Math.floor(Math.random() * (den - 1)) + 1;
                 
-                const leftText = Math.random() > 0.5 ? leftVal : toFractionHtml(leftVal);
-                const rightText = typeof leftText === 'number' ? toFractionHtml(rightVal) : rightVal;
+                const fracVal = whole + (num / den);
                 
-                p.text = `<div class="flex items-center gap-4 bg-white p-4 rounded-xl shadow-sm border">${typeof leftText === 'number' ? leftText : leftText}</div><span class="text-slate-400 font-bold mx-2">vs</span><div class="flex items-center gap-4 bg-white p-4 rounded-xl shadow-sm border">${typeof rightText === 'number' ? rightText : rightText}</div>`;
-                p.answer = leftVal > rightVal ? '>' : '<';
+                const diffType = Math.random();
+                let decVal;
+                
+                if (diffType < 0.45) {
+                    decVal = fracVal + (Math.random() * 0.09 + 0.01);
+                } else if (diffType < 0.9) {
+                    decVal = fracVal - (Math.random() * 0.09 + 0.01);
+                } else {
+                    decVal = fracVal;
+                }
+                
+                decVal = parseFloat(decVal.toFixed(2));
+                
+                const showFracLeft = Math.random() > 0.5;
+                
+                const fracHtml = whole > 0 
+                    ? `<div class="flex items-center gap-1"><span class="text-2xl font-bold">${whole}</span>${makeFractionHtml(num, den)}</div>`
+                    : makeFractionHtml(num, den);
+                
+                const leftContent = showFracLeft ? fracHtml : decVal;
+                const rightContent = showFracLeft ? decVal : fracHtml;
+                
+                const leftValReal = showFracLeft ? fracVal : decVal;
+                const rightValReal = showFracLeft ? decVal : fracVal;
+
+                p.text = `<div class="flex items-center gap-4 bg-white p-4 rounded-xl shadow-sm border">${leftContent}</div><span class="text-slate-400 font-bold mx-2">vs</span><div class="flex items-center gap-4 bg-white p-4 rounded-xl shadow-sm border">${rightContent}</div>`;
+                
+                if (Math.abs(leftValReal - rightValReal) < 0.0001) p.answer = '=';
+                else p.answer = leftValReal > rightValReal ? '>' : '<';
+                
                 p.type = 'compare';
-                p.hint = "분수를 소수로, 혹은 소수를 분수로 바꾸어보세요.";
+                p.hint = "분수를 소수로 바꾸어 비교해보세요. (예: 1/4 = 0.25, 1/5 = 0.2, 1/8 = 0.125)";
             }
 
             // 오답 생성 로직 강화
